@@ -1,0 +1,12 @@
+[package]
+name = "miniminio"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+shared_lib = { path = "../../libs/shared_lib" }  # Import the shared library
+tokio = { version = "1", features = ["full"] }  # Example dependency
+mini-redis = "0.4"
+bytes = "1"

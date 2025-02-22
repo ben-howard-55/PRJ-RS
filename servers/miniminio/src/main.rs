@@ -1,4 +1,3 @@
-use bytes::Bytes;
 use tokio::net::{TcpListener, TcpStream};
 use mini_redis::{Connection,Frame};
 use std::sync::Arc;
@@ -7,11 +6,11 @@ use shared_lib::sharded_db;
 
 #[tokio::main]
 async fn main() {
-    let listener = TcpListener::bind("127.0.0.1:6379").await.unwrap();
+    let listener = TcpListener::bind("127.0.0.1:6378").await.unwrap();
 
-    println!("Listening");
+    println!("Miniminio Is Running!");
 
-    let db = sharded_db::ShardedDB::<Bytes>::new(10);
+    let db = sharded_db::ShardedDB::new(10);
 
     loop {
         let (socket, _) = listener.accept().await.unwrap();
@@ -24,7 +23,7 @@ async fn main() {
     }
 }
 
-async fn process(socket: TcpStream, db: Arc<sharded_db::ShardedDB<Bytes>>){
+async fn process(socket: TcpStream, db: Arc<sharded_db::ShardedDB>){
     use mini_redis::Command::{self, Get, Set};
 
     let mut connection = Connection::new(socket);

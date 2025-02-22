@@ -4,16 +4,14 @@ use std::collections::hash_map::DefaultHasher;
 use std::sync::{Arc, Mutex};
 use std::collections::{HashMap};
 
-use bytes::Bytes;
-
-type ShardedMap = Arc<Vec<Mutex<HashMap<String, Bytes>>>>;
+type ShardedMap<T> = Arc<Vec<Mutex<HashMap<String, T>>>>;
 
 #[derive(Clone)]
-pub struct ShardedDB {
-    db: ShardedMap,
+pub struct ShardedDB<T> {
+    db: ShardedMap<T>,
 }
 
-impl ShardedDB {
+impl<T: std::clone::Clone> ShardedDB<T> {
     pub fn new(num_shards: usize) -> Arc<Self> {
         let mut db =  Vec::with_capacity(num_shards);
         for _ in 0..num_shards {
@@ -23,13 +21,13 @@ impl ShardedDB {
         Arc::new(Self { db: Arc::new(db), })
     }
 
-    pub fn insert(&self, key: &str, value: Bytes) {
+    pub fn insert(&self, key: &str, value: T) {
         let shard_index = self.get_key_shard(key);
         let mut shard = self.db[shard_index].lock().unwrap();
         shard.insert(key.to_string(), value);
     }
 
-    pub fn get(&self, key: &str) -> Option<Bytes> {
+    pub fn get(&self, key: &str) -> Option<T> {
         let shard_index = self.get_key_shard(key);
         let shard = self.db[shard_index].lock().unwrap();
         shard.get(key).cloned()
