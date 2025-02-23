@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
+use uuid::Uuid;
 use bytes::Bytes;
+
+pub type UploadId = String;
 
 // TODO: decide how I want to do efficient look up.
 #[derive(Clone)]
@@ -33,13 +36,6 @@ pub struct ObjectPartLocation {
     byte_offset: u32,
     length: u32,
     check_sum: u32
-}
-
-#[derive(Clone, Debug)]
-pub struct CreateMultipartUploadRequest {
-    bucket: String,
-    key: String,
-    version: String,
 }
 
 pub struct UploadPart {

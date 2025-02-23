@@ -4,16 +4,21 @@ use std::fmt;
 use std::io::Cursor;
 use std::num::TryFromIntError;
 use std::string::FromUtf8Error;
-use shared_lib::client_model::CreateMultipartUploadRequest;
 
-/**
- * Current Message supports a vector of strings only.
- */
+// const INTEGER_BYTE: u8 = b':';
+pub const BULK_BYTE: u8 = b'$';
+pub const SIMPLE_BYTE: u8 = b'+';
+pub const ERROR_BYTE: u8 = b'-';
+pub const ARRAY_BYTE: u8 = b'*';
+
+pub const EOL_BYTE_ENCODING: &[u8; 2] = b"\r\n";
+pub const NULL_BYTE_ENCODING: &[u8; 2] = b"-1";
 
 #[derive(Clone, Debug)]
 pub enum Message {
     Simple(String),
-    // Bulk(Bytes),
+    Bulk(Bytes),
+    Null,
     Array(Vec<Message>),
 }
 
@@ -32,22 +37,22 @@ impl Message {
         Message::Array(vec![])
     }
 
-    // pub(crate) fn push_bulk(&mut self, bytes: Bytes) {
-    //     match self {
-    //         Message::Array(vec) => {
-    //             vec.push(Message::Bulk(bytes));
-    //         }
-    //         _ => panic!("not an array frame"),
-    //     }
-    // }
+    pub(crate) fn push_bulk(&mut self, bytes: Bytes) {
+        match self {
+            Message::Array(vec) => {
+                vec.push(Message::Bulk(bytes));
+            }
+            _ => panic!("not an array frame"),
+        }
+    }
 
     pub fn check (src: &mut Cursor<&[u8]>) -> Result<(), Error> {
         match get_u8(src)? {
-            b'+' => {
+            SIMPLE_BYTE => {
                 get_line(src)?;
                 Ok(())
             }
-            b'*' => {
+            ARRAY_BYTE => {
                 let len = get_decimal(src)?;
 
                 for _ in 0..len {
@@ -56,19 +61,29 @@ impl Message {
 
                 Ok(())
             }
+            BULK_BYTE => {
+                if ERROR_BYTE == peek_u8(src)? {
+                    // Skip '-1\r\n'
+                    skip(src,NULL_BYTE_ENCODING.len() + EOL_BYTE_ENCODING.iter().len())
+                } else {
+                    let len: usize = get_decimal(src)?.try_into()?;
+                    // skip that number of bytes + 2 (\r\n).
+                    skip(src, len + EOL_BYTE_ENCODING.len())
+                }
+            }
             actual => Err(format!("protocol error; invalid message type byte `{}`", actual).into()),
         }
     }
 
     pub fn parse(src: &mut Cursor<&[u8]>) -> Result<Message, Error> {
         match get_u8(src)? {
-            b'+' => {
+            SIMPLE_BYTE => {
                 let line = get_line(src)?.to_vec();
                 let string = String::from_utf8(line)?;
 
                 Ok(Message::Simple(string))
             }
-            b'*' => {
+            ARRAY_BYTE => {
                 let len = get_decimal(src)?.try_into()?;
                 let mut out = Vec::with_capacity(len);
 
@@ -77,6 +92,33 @@ impl Message {
                 }
 
                 Ok(Message::Array(out))
+            }
+            BULK_BYTE => {
+                if ERROR_BYTE == peek_u8(src)? {
+                    let line = get_line(src)?;
+
+                    if line != NULL_BYTE_ENCODING {
+                        return Err("protocol error; invalid frame format".into());
+                    }
+    
+                    Ok(Message::Null)
+                } else {
+                    let len = get_decimal(src)?.try_into()?;
+                    let n = len + 2;
+
+                    if src.remaining() < n {
+                        return Err(Error::Incomplete);
+                    }
+
+                    let data = Bytes::copy_from_slice(&src.chunk()[..len]);
+                    
+                    // skip that number of bytes + 2 (\r\n).
+                    skip(src, n)?;
+                    
+                    Ok(Message::Bulk(data))
+
+                }
+
             }
             _ => unimplemented!(),
         }
@@ -152,7 +194,12 @@ impl fmt::Display for Message {
                     }
                 }
                 Ok(())
-            }
+            },
+            Message::Bulk(msg) => match str::from_utf8(msg) {
+                Ok(string) => string.fmt(fmt),
+                Err(_) => write!(fmt, "{:?}", msg),
+            },
+            Message::Null => "null".fmt(fmt)
         }
     }
 }

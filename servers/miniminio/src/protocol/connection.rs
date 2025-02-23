@@ -3,7 +3,9 @@ use std::io::{self, Cursor};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufWriter};
 use tokio::net::TcpStream;
 
-use crate::message::{self, Error, Message};
+use crate::protocol::message::{Error, Message};
+
+use super::message::{ARRAY_BYTE, BULK_BYTE, EOL_BYTE_ENCODING, NULL_BYTE_ENCODING, SIMPLE_BYTE};
 
 #[derive(Debug)]
 pub struct Connection {
@@ -67,7 +69,7 @@ impl Connection {
     pub async fn write_message(&mut self, message: &Message) -> io::Result<()> {
         match message {
             Message::Array(val) => {
-                self.stream.write_u8(b'*').await?; // messge type
+                self.stream.write_u8(ARRAY_BYTE).await?; // messge type
                 self.write_decimal(val.len() as u64).await?; // arr length
                 for m in &**val {
                     self.write_value(m).await?;
@@ -82,9 +84,20 @@ impl Connection {
     async fn write_value(&mut self, message: &Message) -> io::Result<()> {
         match message {
             Message::Simple(val) => {
-                self.stream.write_u8(b'+').await?;
+                self.stream.write_u8(SIMPLE_BYTE).await?;
                 self.stream.write_all(val.as_bytes()).await?;
-                self.stream.write_all(b"\r\n").await?;
+                self.stream.write_all(EOL_BYTE_ENCODING).await?;
+            }
+            Message::Bulk(val) => {
+                self.stream.write_u8(BULK_BYTE).await?;
+                self.write_decimal(val.len() as u64).await?;
+                self.stream.write_all(&val).await?;
+                self.stream.write_all(EOL_BYTE_ENCODING).await?;
+            }
+            Message::Null => {
+                self.stream.write_u8(BULK_BYTE).await?;
+                self.stream.write_all(NULL_BYTE_ENCODING).await?;
+                self.stream.write_all(EOL_BYTE_ENCODING).await?;
             }
             // Encoding an `Array` from within a value cannot be done using a
             // recursive strategy. In general, async fns do not support

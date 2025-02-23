@@ -1,4 +1,4 @@
-use miniminio::connection::{self, Connection};
+use miniminio::protocol::connection::Connection;
 use tokio::net::{TcpListener, TcpStream};
 // use mini_redis::{Connection,Frame};
 use std::sync::Arc;
