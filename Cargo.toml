@@ -1,4 +1,5 @@
 [workspace]
 members = [
-    "servers/miniredis"
+    "servers/miniredis",
+    "servers/miniminio",
 ]

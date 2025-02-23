@@ -10,3 +10,4 @@ shared_lib = { path = "../../libs/shared_lib" }  # Import the shared library
 tokio = { version = "1", features = ["full"] }  # Example dependency
 mini-redis = "0.4"
 bytes = "1"
+atoi = "0.3.2"

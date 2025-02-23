@@ -315,6 +315,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "miniminio"
+version = "0.1.0"
+dependencies = [
+ "atoi",
+ "bytes",
+ "mini-redis",
+ "shared_lib",
+ "tokio",
+]
+
+[[package]]
 name = "miniredis"
 version = "0.1.0"
 dependencies = [

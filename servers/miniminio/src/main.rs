@@ -1,8 +1,9 @@
+use miniminio::connection::{self, Connection};
 use tokio::net::{TcpListener, TcpStream};
-use mini_redis::{Connection,Frame};
+// use mini_redis::{Connection,Frame};
 use std::sync::Arc;
 
-use shared_lib::sharded_db;
+use shared_lib::{client_model::{DataStoreServiceSchema, ObjectLocation}, sharded_db};
 
 #[tokio::main]
 async fn main() {
@@ -10,39 +11,44 @@ async fn main() {
 
     println!("Miniminio Is Running!");
 
-    let db = sharded_db::ShardedDB::new(10);
+    // TODO: probably in the future want to create owner threads and channels that own said thread?
+    let data_store = sharded_db::ShardedDB::<DataStoreServiceSchema>::new(10);
+    let object_store = sharded_db::ShardedDB::<ObjectLocation>::new(10);
 
     loop {
         let (socket, _) = listener.accept().await.unwrap();
 
         println!("Accepted");
-        let db_clone = Arc::clone(&db);
+        let data_store_clone = Arc::clone(&data_store);
+        let object_store_clone = Arc::clone(&object_store);
         tokio::spawn(async move {
-            process(socket, db_clone).await;
+            process(socket, data_store_clone, object_store_clone).await;
         });
     }
 }
 
-async fn process(socket: TcpStream, db: Arc<sharded_db::ShardedDB>){
+async fn process(socket: TcpStream, data_store: Arc<sharded_db::ShardedDB::<DataStoreServiceSchema>>, object_store: Arc<sharded_db::ShardedDB::<ObjectLocation>>){
     use mini_redis::Command::{self, Get, Set};
 
+    // let mut connection = Connection::new(socket);
     let mut connection = Connection::new(socket);
 
-    while let Some(frame) = connection.read_frame().await.unwrap() {
-        let response = match Command::from_frame(frame).unwrap() {
-            Set(cmd) => {
-                db.insert(&cmd.key().to_string(), cmd.value().clone());
-                Frame::Simple("OK".to_string())
-            }
-            Get(cmd) => {
-                if let Some(value) = db.get(cmd.key()) {
-                    Frame::Bulk(value.clone())
-                } else {
-                    Frame::Null
-                }
-            }
-            cmd => panic!("unimplemented {:?}", cmd),
-        };
-        connection.write_frame(&response).await.unwrap();
+    while let Some(message) = connection.read_message().await.unwrap() {
+        // let response = match Command::from_frame(frame).unwrap() {
+            // Set(cmd) => {
+            //     db.insert(&cmd.key().to_string(), cmd.value().clone());
+            //     Frame::Simple("OK".to_string())
+            // }
+            // Get(cmd) => {
+            //     if let Some(value) = db.get(cmd.key()) {
+            //         Frame::Bulk(value.clone())
+            //     } else {
+            //         Frame::Null
+            //     }
+            // }
+            // cmd => panic!("unimplemented {:?}", cmd),
+        // };
+        // println!(&message);
+        connection.write_message(&message).await.unwrap();
     }
 }

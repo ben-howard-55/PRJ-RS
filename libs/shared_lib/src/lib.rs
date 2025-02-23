@@ -1,2 +1,2 @@
 pub mod sharded_db;
-pub mod models;
+pub mod client_model;
